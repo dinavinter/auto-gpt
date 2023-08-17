@@ -13,4 +13,16 @@ services:
       - ./:/app
       - ./docker-compose.yml:/app/docker-compose.yml:ro
       - ./Dockerfile:/app/Dockerfile:ro
+      - type: bind
+        source: ./azure.yaml
+        target: /app/azure.yaml
     profiles: ["exclude-from-up"]
+    ## uncomment following lines if you want to make use of these files
+    ## you must have them existing in the same folder as this docker-compose.yml
+    #- type: bind
+    #  source: ./azure.yaml
+    #  target: /app/azure.yaml
+    #- type: bind
+    #  source: ./ai_settings.yaml
+    #  target: /app/ai_settings.yaml
+

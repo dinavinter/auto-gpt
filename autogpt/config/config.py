@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Union
 import yaml
 from auto_gpt_plugin_template import AutoGPTPluginTemplate
 from colorama import Fore
+from autogpt.config.identity import get_token
 from pydantic import Field, validator
 
 from autogpt.core.configuration.schema import Configurable, SystemSettings
@@ -125,6 +126,10 @@ class Config(SystemSettings, arbitrary_types_allowed=True):
     use_azure: bool = False
     azure_config_file: Optional[str] = AZURE_CONFIG_FILE
     azure_model_to_deployment_id_map: Optional[Dict[str, str]] = None
+    azure_client_id: Optional[str] = None
+    azure_client_secret: Optional[str] = None
+    azure_auth_url: Optional[str] = None
+    
     # Elevenlabs
     elevenlabs_api_key: Optional[str] = None
     # Github
@@ -169,6 +174,10 @@ class Config(SystemSettings, arbitrary_types_allowed=True):
         return credentials
 
     def get_azure_credentials(self, model: str) -> dict[str, str]:
+        # get apikey from oauth/token api using azure credentials
+        api_key_token = get_token(self.azure_auth_url, self.azure_client_id, self.azure_client_secret)
+
+
         """Get the kwargs for the Azure API."""
 
         # Fix --gpt3only and --gpt4only in combination with Azure
@@ -211,6 +220,7 @@ class Config(SystemSettings, arbitrary_types_allowed=True):
             "api_type": self.openai_api_type,
             "api_base": self.openai_api_base,
             "api_version": self.openai_api_version,
+            "api_key": api_key_token,
         }
         if model == self.embedding_model:
             kwargs["engine"] = deployment_id
@@ -241,6 +251,11 @@ class ConfigBuilder(Configurable[Config]):
             "browse_spacy_language_model": os.getenv("BROWSE_SPACY_LANGUAGE_MODEL"),
             "openai_api_key": os.getenv("OPENAI_API_KEY"),
             "use_azure": os.getenv("USE_AZURE") == "True",
+            "azure_client_id": os.getenv("AZURE_CLIENT_ID"),
+            "azure_client_secret": os.getenv("AZURE_CLIENT_SECRET"),
+            "azure_auth_url": os.getenv("AZURE_AUTH_URL"),
+            "smart_llm": os.getenv("SMART_LLM", os.getenv("SMART_LLM_MODEL")),
+
             "azure_config_file": os.getenv("AZURE_CONFIG_FILE", AZURE_CONFIG_FILE),
             "execute_local_commands": os.getenv("EXECUTE_LOCAL_COMMANDS", "False")
             == "True",
@@ -369,12 +384,15 @@ class ConfigBuilder(Configurable[Config]):
             "azure_model_to_deployment_id_map": config_params.get(
                 "azure_model_map", {}
             ),
+            "azure_client_id": config_params.get("azure_client_id", ""),
+            "azure_client_secret": config_params.get("azure_client_secret", ""),
+            "azure_auth_url": config_params.get("azure_auth_url", ""),
         }
 
 
 def check_openai_api_key(config: Config) -> None:
     """Check if the OpenAI API key is set in config.py or as an environment variable."""
-    if not config.openai_api_key:
+    if not config.openai_api_key and not config.azure_client_id:
         print(
             Fore.RED
             + "Please set your OpenAI API key in .env or as an environment variable."
